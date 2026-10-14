@@ -6,7 +6,11 @@ import plotly.express as px
 from plotly.subplots import make_subplots
 import yfinance as yf
 import warnings
+from pathlib import Path
+
 warnings.filterwarnings("ignore")
+
+FUEL_CSV = Path(__file__).resolve().parent / "fuel.csv"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # PAGE CONFIG
@@ -110,10 +114,32 @@ COLORS = {
 # ─────────────────────────────────────────────────────────────────────────────
 @st.cache_data(show_spinner=False)
 def load_raw_data():
-    # Fuel – bundled CSV
-    fuel = pd.read_csv(FUEL_CSV)
-    fuel.columns = fuel.columns.str.lower()
-    fuel["date"] = pd.to_datetime(fuel["date"])
+    # Fuel – use the bundled CSV when it contains data; otherwise use Yahoo
+    # Finance so a missing or empty deployment asset does not stop the app.
+    if FUEL_CSV.is_file() and FUEL_CSV.stat().st_size > 0:
+        fuel = pd.read_csv(FUEL_CSV)
+        fuel.columns = fuel.columns.str.lower()
+        required_columns = {"date", "crude_oil_price"}
+        missing_columns = required_columns - set(fuel.columns)
+        if missing_columns:
+            raise ValueError(
+                f"{FUEL_CSV.name} is missing required columns: "
+                f"{', '.join(sorted(missing_columns))}"
+            )
+        fuel["date"] = pd.to_datetime(fuel["date"])
+    else:
+        fuel = yf.download(
+            "CL=F",
+            start="2004-01-01",
+            auto_adjust=True,
+            progress=False,
+        ).reset_index()
+        fuel.columns = [
+            c if isinstance(c, str) else c[0] for c in fuel.columns
+        ]
+        fuel.columns = fuel.columns.str.lower()
+        fuel = fuel.rename(columns={"close": "crude_oil_price"})
+        fuel["date"] = pd.to_datetime(fuel["date"])
 
     # Gold – yfinance daily, then monthly last close
     gold_raw = yf.download("GC=F", start="2004-01-01", auto_adjust=True, progress=False)
