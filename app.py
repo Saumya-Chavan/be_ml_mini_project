@@ -166,7 +166,8 @@ def build_features(_fuel, _gold_raw, _nifty_raw):
 
     merged = pd.concat([fuel_monthly, gold_monthly, nifty_monthly], axis=1, join="inner")
     merged.columns = ["fuel_price", "gold_price", "nifty_close"]
-    merged = merged.dropna().reset_index().rename(columns={merged.columns[0] if merged.index.name else "index": "date"})
+    # reset_index() brings the date index back as a column; rename it to "date" if needed
+    merged = merged.dropna().reset_index()
     if "index" in merged.columns:
         merged = merged.rename(columns={"index": "date"})
 
